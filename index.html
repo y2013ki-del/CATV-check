@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CATV 계획점검</title>
+    <link rel="stylesheet" href="/app.css?v=12" />
+  </head>
+  <body>
+    <div class="appShell">
+      <header class="appHeader">
+        <div>
+          <strong>CATV <span>계획점검</span></strong>
+          <small>v0.2.0</small>
+        </div>
+        <time id="todayCompact">----</time>
+      </header>
+
+      <nav class="tabBar" aria-label="메뉴">
+        <button class="tab active" data-view-tab="check">점검</button>
+        <button class="tab" data-view-tab="history">히스토리</button>
+        <button class="tab" data-view-tab="search">검색</button>
+        <button class="tab" data-view-tab="dashboard">대시보드</button>
+        <button class="tab" data-view-tab="settings">설정</button>
+      </nav>
+
+      <main>
+        <section class="view active" id="checkView">
+          <section class="page active" id="selectPage">
+            <div class="inspectorCard">
+              <label for="inspectorName">점검자</label>
+              <input id="inspectorName" autocomplete="name" placeholder="이름을 입력하세요" />
+            </div>
+            <div id="sectorGroups" class="sectorGroups"></div>
+          </section>
+
+          <section class="page" id="fiberPage">
+            <div class="contextCard">
+              <span id="fiberRegion">-</span>
+              <strong id="fiberBuilding">-</strong>
+              <small>계획점검 이행일과 광선로 값을 입력합니다</small>
+            </div>
+            <div class="stepNav">
+              <button class="step active">광선로</button>
+              <button class="step">신호값</button>
+              <button class="step">완료</button>
+            </div>
+            <h1>CA_광선로 측정_2026</h1>
+            <p class="lead">H, I, J 열을 입력하세요. 비워두면 자동으로 - 저장됩니다.</p>
+            <div id="fiberGrid" class="fieldStack"></div>
+            <div id="fiberResult" class="toast"></div>
+          </section>
+
+          <section class="page" id="signalPage">
+            <div class="contextCard">
+              <span id="signalRegion">-</span>
+              <strong id="signalBuilding">-</strong>
+              <small id="signalMeta">측정값 시트 확인 중</small>
+            </div>
+            <div class="stepNav">
+              <button class="step done">광선로</button>
+              <button class="step active">신호값</button>
+              <button class="step">완료</button>
+            </div>
+            <h1 id="signalTitle">신호값 입력</h1>
+            <div class="progress"><span id="signalProgress"></span></div>
+            <div id="signalGrid" class="fieldStack"></div>
+            <div id="signalResult" class="toast"></div>
+          </section>
+
+          <section class="page" id="donePage">
+            <div class="doneMark">✓</div>
+            <h1>입력 완료</h1>
+            <p class="lead">작업본에 저장되었습니다. 저장본 버튼으로 파일을 확인할 수 있습니다.</p>
+            <a class="fileButton" href="/download">저장본 열기</a>
+            <button id="restartButton" class="ghostButton">다른 건물 점검</button>
+          </section>
+        </section>
+
+        <section class="view placeholderView" id="historyView">
+          <div class="historyHead">
+            <div>
+              <h1>계획점검 이행일</h1>
+              <p>건물별 월간 점검 이행 현황</p>
+            </div>
+            <select id="historyFilter" aria-label="지역 필터">
+              <option value="all">전체</option>
+              <option value="K1">K1</option>
+              <option value="K2">K2</option>
+              <option value="사외">사외</option>
+            </select>
+            <select id="historyMonthFilter" aria-label="월 필터"></select>
+          </div>
+          <div class="historySummary">
+            <div><span>전체</span><strong id="historyTotal">-</strong></div>
+            <div><span id="historyCheckedLabel">이행 건물</span><strong id="historyChecked">-</strong></div>
+            <div><span>미이행</span><strong id="historyUnchecked">-</strong></div>
+          </div>
+          <div id="historyDetail" class="historyDetail"></div>
+          <div id="monthSummary" class="monthSummary"></div>
+          <div id="historyList" class="historyList"></div>
+        </section>
+        <section class="view placeholderView" id="searchView">
+          <h1>검색</h1>
+          <p>건물별 검색 화면은 다음 단계에서 연결할 수 있습니다.</p>
+        </section>
+        <section class="view placeholderView" id="dashboardView">
+          <h1>대시보드</h1>
+          <p>월별 이행률과 미입력 항목 요약을 배치할 영역입니다.</p>
+        </section>
+        <section class="view placeholderView" id="settingsView">
+          <section class="adminLogin" id="adminLogin">
+            <h1>관리자 설정</h1>
+            <p>관리자 비밀번호를 입력하세요.</p>
+            <div class="adminPasswordCard">
+              <label for="adminPassword">비밀번호</label>
+              <input id="adminPassword" type="password" inputmode="numeric" placeholder="비밀번호 입력" />
+            </div>
+            <button id="adminLoginButton" class="fileButton" type="button">관리자 페이지 열기</button>
+            <div id="adminLoginMessage" class="toast"></div>
+          </section>
+
+          <section class="adminPanel" id="adminPanel" hidden>
+            <div class="adminPanelHead">
+              <div>
+                <h1>관리자 페이지</h1>
+                <p>현재는 설정 항목이 없습니다.</p>
+              </div>
+              <button id="adminLogoutButton" class="detailClose" type="button" aria-label="관리자 로그아웃">×</button>
+            </div>
+            <div class="adminEmpty">
+              <strong>준비 중</strong>
+              <span>추후 점검 항목, 건물 목록, 시트 연결 설정을 이곳에 배치할 수 있습니다.</span>
+            </div>
+            <p id="workbookPath">작업본 경로를 불러오는 중입니다.</p>
+          </section>
+        </section>
+      </main>
+
+      <footer class="bottomBar">
+        <button id="primaryAction" class="primaryAction" disabled>점검 시작 →</button>
+      </footer>
+    </div>
+    <script src="/app.js?v=14"></script>
+  </body>
+</html>
