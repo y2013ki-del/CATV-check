@@ -18,9 +18,75 @@ const GROUP_LABELS = {
 };
 
 const $ = (selector) => document.querySelector(selector);
+const API_BASE = window.CATV_API_BASE || "";
+const apiUrl = (path) => `${API_BASE}${path}`;
+const USE_JSONP_API = /^https?:\/\//.test(API_BASE);
+
+function jsonp(action, payload = {}) {
+  return new Promise((resolve, reject) => {
+    const callback = `catvJsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const params = new URLSearchParams({
+      action,
+      callback,
+      payload: JSON.stringify(payload),
+      _: String(Date.now()),
+    });
+    const script = document.createElement("script");
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("스프레드시트 응답 시간이 초과되었습니다."));
+    }, 45000);
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      delete window[callback];
+      script.remove();
+    }
+
+    window[callback] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("스프레드시트 API를 불러오지 못했습니다."));
+    };
+    script.src = `${API_BASE}?${params.toString()}`;
+    document.head.appendChild(script);
+  });
+}
+
+function actionForPath(path) {
+  if (path === "/api/bootstrap") return "bootstrap";
+  if (path === "/api/history") return "history";
+  if (path.startsWith("/api/history/detail")) return "historyDetail";
+  if (path === "/api/start") return "start";
+  if (path === "/api/fiber/save") return "fiberSave";
+  if (path === "/api/signal") return "signal";
+  if (path === "/api/signal/save") return "signalSave";
+  throw new Error(`지원하지 않는 요청입니다: ${path}`);
+}
+
+async function getJson(path) {
+  if (USE_JSONP_API) {
+    const payload = {};
+    if (path.startsWith("/api/history/detail")) {
+      const query = path.split("?")[1] || "";
+      payload.building = new URLSearchParams(query).get("building") || "";
+    }
+    return jsonp(actionForPath(path), payload);
+  }
+  const response = await fetch(apiUrl(path));
+  return response.json();
+}
 
 async function postJson(path, payload) {
-  const response = await fetch(path, {
+  if (USE_JSONP_API) {
+    const data = await jsonp(actionForPath(path), payload);
+    if (!data.ok) throw new Error(data.error || "요청을 처리하지 못했습니다.");
+    return data;
+  }
+  const response = await fetch(apiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -238,8 +304,7 @@ function restart() {
 
 async function loadHistory() {
   if (!state.history) {
-    const response = await fetch("/api/history");
-    const data = await response.json();
+    const data = await getJson("/api/history");
     if (!data.ok) throw new Error(data.error || "히스토리를 불러오지 못했습니다.");
     state.history = data;
     state.historyMonth = String(data.summary.currentMonth);
@@ -339,8 +404,7 @@ function setHistoryMonth(month) {
 }
 
 async function loadHistoryDetail(building) {
-  const response = await fetch(`/api/history/detail?building=${encodeURIComponent(building)}`);
-  const data = await response.json();
+  const data = await getJson(`/api/history/detail?building=${encodeURIComponent(building)}`);
   if (!data.ok) throw new Error(data.error || "상세 정보를 불러오지 못했습니다.");
   state.historyDetail = data;
   renderHistoryDetail();
@@ -523,11 +587,12 @@ function handleAdminLogout() {
 }
 
 async function bootstrap() {
-  const response = await fetch("/api/bootstrap");
-  const data = await response.json();
+  const data = await getJson("/api/bootstrap");
   state.sectors = data.sectors;
   $("#todayCompact").textContent = todayCompact(data.today);
   $("#workbookPath").textContent = data.workbook;
+  const link = $("#spreadsheetLink");
+  if (link && data.spreadsheetUrl) link.href = data.spreadsheetUrl;
   renderGroups();
   bindStaticEvents();
   setView("check");

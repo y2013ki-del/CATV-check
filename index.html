@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CATV 계획점검</title>
-    <link rel="stylesheet" href="/app.css?v=12" />
+    <link rel="stylesheet" href="./app.css?v=14" />
   </head>
   <body>
     <div class="appShell">
@@ -72,7 +72,13 @@
             <div class="doneMark">✓</div>
             <h1>입력 완료</h1>
             <p class="lead">작업본에 저장되었습니다. 저장본 버튼으로 파일을 확인할 수 있습니다.</p>
-            <a class="fileButton" href="/download">저장본 열기</a>
+            <a
+              id="spreadsheetLink"
+              class="fileButton"
+              href="https://docs.google.com/spreadsheets/d/1pG4VMw8rKuAWr4CQ56RqMTLsSDm7iFdVwA1Cf3QxtFI/edit"
+              target="_blank"
+              rel="noopener"
+            >스프레드시트 열기</a>
             <button id="restartButton" class="ghostButton">다른 건물 점검</button>
           </section>
         </section>
@@ -141,6 +147,9 @@
         <button id="primaryAction" class="primaryAction" disabled>점검 시작 →</button>
       </footer>
     </div>
-    <script src="/app.js?v=14"></script>
+    <script>
+      window.CATV_API_BASE = "https://script.google.com/macros/s/AKfycbw6oTP9zhunIC2HiBHcElPM3337kJnLHpvKjMljcSpYK-k2v4M_Ylfs6Egig5kqEpUZMA/exec";
+    </script>
+    <script src="./app.js?v=16"></script>
   </body>
 </html>
