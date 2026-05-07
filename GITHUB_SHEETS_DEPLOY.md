@@ -33,7 +33,7 @@ apps-script/Code.gs
 
 ```html
 <script>
-  window.CATV_API_BASE = "https://script.google.com/macros/s/AKfycbw6oTP9zhunIC2HiBHcElPM3337kJnLHpvKjMljcSpYK-k2v4M_Ylfs6Egig5kqEpUZMA/exec";
+  window.CATV_API_BASE = "https://script.google.com/macros/s/AKfycbyL7EgBP2ltsJ841vK9h_xEW_2HYCM40oW0ZnKNBgVIZeYENnR4CCYPG4aO_Q-a8wEOEw/exec";
 </script>
 ```
 
