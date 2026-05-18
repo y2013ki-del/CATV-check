@@ -260,44 +260,62 @@ async function saveFiber() {
 async function renderSignal() {
   const result = await postJson("/api/signal", {
     building: state.selected.building,
-    step: state.signalStep,
   });
-  state.signalTotal = result.totalSteps;
+  state.signalTotal = 1;
   $("#signalMeta").textContent = `${result.sheet} · ${result.monthRow}행`;
-  const hasMeta = result.headers.some((item) => item.letter === "AB" || item.letter === "AD");
-  $("#signalTitle").textContent = hasMeta ? "위치 / 점검자 입력" : result.headers.length === 1 ? "신호값 입력" : "EVM / MER 입력";
-  $("#signalProgress").style.width = `${(state.signalStep / state.signalTotal) * 100}%`;
-  const inspector = $("#inspectorName").value.trim();
-  $("#signalGrid").innerHTML = result.headers
-    .map((item) => {
-      const defaultValue = item.letter === "AD" && !result.values[item.letter] ? inspector : result.values[item.letter];
-      return fieldTemplate(item, defaultValue ?? "", result.previous?.[item.letter] ?? "");
-    })
-    .join("");
-  toast("#signalResult", `${state.signalStep + 1}/${state.signalTotal} 단계 입력 중`);
+  $("#signalTitle").textContent = "신호값 입력";
+  $("#signalProgress").style.width = "100%";
+  $("#signalGrid").innerHTML = signalGroupsTemplate(result.groups);
+  toast("#signalResult", "채널별 RF / EVM / MER 값을 입력하세요.");
 }
 
 async function saveSignal() {
   try {
-    const result = await postJson("/api/signal/save", {
+    await postJson("/api/signal/save", {
       building: state.selected.building,
-      step: state.signalStep,
       values: collectValues("#signalGrid"),
-      inspector: $("#inspectorName").value.trim(),
     });
-    state.signalStep = result.nextStep;
-    if (state.signalStep >= state.signalTotal) {
-      $("#signalProgress").style.width = "100%";
-      await renderChecklist();
-      setPage("checklist");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    await renderSignal();
+    await renderChecklist();
+    setPage("checklist");
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
     toast("#signalResult", error.message, "warn");
   }
+}
+
+function signalGroupsTemplate(groups = []) {
+  if (!groups.length) return '<p class="measureNotice">표시할 신호값 항목이 없습니다.</p>';
+  return `
+    <div class="signalInputList">
+      ${groups
+        .map(
+          (group) => `
+            <article class="signalInputRow">
+              <strong class="signalChannel">${group.channel}</strong>
+              <div class="signalMetrics">
+                ${group.metrics
+                  .map(
+                    (metric) => `
+                      <label class="signalMetric">
+                        <span>${metric.title}<small>${metric.letter}열</small></span>
+                        <input
+                          data-col="${metric.letter}"
+                          inputmode="decimal"
+                          value="${metric.value ?? ""}"
+                          placeholder="-"
+                          aria-label="${group.channel} ${metric.title}"
+                        />
+                      </label>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function checklistResultMode(result) {

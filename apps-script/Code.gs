@@ -148,7 +148,6 @@ function appFiberSave(body) {
 
 function appSignal(body) {
   const building = norm_(body && body.building);
-  const step = Number((body && body.step) || 0);
   const ss = openBook_();
   const plan = ss.getSheetByName(PLAN_SHEET);
   const planRow = findPlanRow_(plan, building);
@@ -158,35 +157,20 @@ function appSignal(body) {
   const ws = ss.getSheetByName(block.sheet);
   const month = Number(Utilities.formatDate(today_(), TIMEZONE, "M"));
   const monthRow = findMonthRowInBlock_(ws, block.headerRow, month);
-  const cols = SIGNAL_STEPS[step];
-  const values = {};
-  const previous = {};
-  cols.forEach((col) => {
-    const letter = columnLetter_(col);
-    const current = ws.getRange(monthRow, col).getValue();
-    const prior = previousNonblankInBlock_(ws, block.headerRow, monthRow, col);
-    previous[letter] = displayValue_(prior);
-    values[letter] = displayValue_(current !== "" && current !== null ? current : col === 28 ? prior : current);
-  });
   return {
     ok: true,
     sheet: block.sheet,
     region,
     monthRow,
     headerRow: block.headerRow,
-    step,
-    totalSteps: SIGNAL_STEPS.length,
-    headers: signalHeaders_(ws, cols, block.headerRow),
-    values,
-    previous,
+    totalSteps: 1,
+    groups: signalInputGroups_(ws, monthRow, block.headerRow),
   };
 }
 
 function appSignalSave(body) {
   const building = norm_(body && body.building);
-  const step = Number((body && body.step) || 0);
   const values = (body && body.values) || {};
-  const inspector = norm_(body && body.inspector);
   const ss = openBook_();
   const plan = ss.getSheetByName(PLAN_SHEET);
   const planRow = findPlanRow_(plan, building);
@@ -196,15 +180,12 @@ function appSignalSave(body) {
   const ws = ss.getSheetByName(block.sheet);
   const month = Number(Utilities.formatDate(today_(), TIMEZONE, "M"));
   const monthRow = findMonthRowInBlock_(ws, block.headerRow, month);
-  SIGNAL_STEPS[step].forEach((col) => {
+  signalInputColumns_().forEach((col) => {
     const key = columnLetter_(col);
     const raw = values[key] || "";
-    let next = raw === "" ? "" : numericOrText_(raw);
-    if (col === 28 && raw === "") next = previousNonblankInBlock_(ws, block.headerRow, monthRow, col);
-    if (col === 30 && raw === "" && inspector) next = inspector;
-    ws.getRange(monthRow, col).setValue(next);
+    ws.getRange(monthRow, col).setValue(raw === "" ? "" : numericOrText_(raw));
   });
-  return { ok: true, sheet: block.sheet, monthRow, nextStep: step + 1 };
+  return { ok: true, sheet: block.sheet, monthRow, nextStep: 1 };
 }
 
 function appChecklist(body) {
@@ -463,6 +444,57 @@ function signalHeaders_(ws, cols, headerRow) {
     measure: norm_(ws.getRange(headerRow + 1, col).getValue()),
     kind: norm_(ws.getRange(headerRow + 2, col).getValue()),
   }));
+}
+
+function signalInputColumns_() {
+  const cols = [];
+  SIGNAL_STEPS.forEach((group) => {
+    group.forEach((col) => {
+      if (cols.indexOf(col) < 0) cols.push(col);
+    });
+  });
+  return cols;
+}
+
+function signalMetricKey_(measure, kind) {
+  if (kind === "신호값" || measure.indexOf("RF Power") >= 0) return "rf";
+  if (kind === "EVM") return "evm";
+  if (kind === "MER") return "mer";
+  return "value";
+}
+
+function signalMetricTitle_(metric, measure, kind) {
+  if (metric === "rf") return "RF";
+  if (metric === "evm") return "EVM";
+  if (metric === "mer") return "MER";
+  return kind || measure || "값";
+}
+
+function signalInputGroups_(ws, row, headerRow) {
+  const signalCols = signalInputColumns_();
+  const groups = [];
+  let current = null;
+  for (let col = 3; col <= 27; col += 1) {
+    const channel = norm_(ws.getRange(headerRow, col).getValue());
+    if (channel) {
+      current = { channel, metrics: [] };
+      groups.push(current);
+    }
+    if (!current || signalCols.indexOf(col) < 0) continue;
+    const measure = norm_(ws.getRange(headerRow + 1, col).getValue());
+    const kind = norm_(ws.getRange(headerRow + 2, col).getValue());
+    const metric = signalMetricKey_(measure, kind);
+    current.metrics.push({
+      col,
+      letter: columnLetter_(col),
+      metric,
+      title: signalMetricTitle_(metric, measure, kind),
+      measure,
+      kind,
+      value: displayValue_(ws.getRange(row, col).getValue()),
+    });
+  }
+  return groups.filter((group) => group.metrics.length);
 }
 
 function previousNonblankInBlock_(ws, headerRow, beforeRow, col) {

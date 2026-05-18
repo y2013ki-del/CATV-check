@@ -365,6 +365,72 @@ h1 {
   display: block;
 }
 
+.signalInputList {
+  display: grid;
+  gap: 10px;
+}
+
+.signalInputRow {
+  display: grid;
+  grid-template-columns: minmax(86px, 0.9fr) minmax(0, 2.2fr);
+  gap: 10px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid #cdd4e2;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.signalChannel {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.25;
+  word-break: keep-all;
+}
+
+.signalMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.signalMetric {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.signalMetric span {
+  color: #4f596f;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.signalMetric small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.signalMetric input {
+  width: 100%;
+  height: 40px;
+  padding: 0 8px;
+  border: 1px solid #c7cedc;
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 900;
+}
+
 .toast {
   display: none;
   margin-top: 14px;
@@ -1156,7 +1222,7 @@ h1 {
   }
 
   #signalGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .fieldStack {
