@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CATV 계획점검</title>
-    <link rel="stylesheet" href="./app.css?v=14" />
+    <link rel="stylesheet" href="./app.css?v=15" />
   </head>
   <body>
     <div class="appShell">
@@ -43,7 +43,8 @@
             <div class="stepNav">
               <button class="step active">광선로</button>
               <button class="step">신호값</button>
-              <button class="step">완료</button>
+              <button class="step">점검결과</button>
+              <button class="step">비고</button>
             </div>
             <h1>CA_광선로 측정_2026</h1>
             <p class="lead">H, I, J 열을 입력하세요. 비워두면 자동으로 - 저장됩니다.</p>
@@ -60,12 +61,49 @@
             <div class="stepNav">
               <button class="step done">광선로</button>
               <button class="step active">신호값</button>
-              <button class="step">완료</button>
+              <button class="step">점검결과</button>
+              <button class="step">비고</button>
             </div>
             <h1 id="signalTitle">신호값 입력</h1>
             <div class="progress"><span id="signalProgress"></span></div>
             <div id="signalGrid" class="fieldStack"></div>
             <div id="signalResult" class="toast"></div>
+          </section>
+
+          <section class="page" id="checklistPage">
+            <div class="contextCard">
+              <span id="checklistRegion">-</span>
+              <strong id="checklistBuilding">-</strong>
+              <small id="checklistMeta">건물 점검 결과를 입력합니다</small>
+            </div>
+            <div class="stepNav">
+              <button class="step done">광선로</button>
+              <button class="step done">신호값</button>
+              <button class="step active">점검결과</button>
+              <button class="step">비고</button>
+            </div>
+            <h1>점검 결과</h1>
+            <p class="lead">항목별 결과를 선택하세요. 기타를 선택하면 직접 입력할 수 있습니다.</p>
+            <div id="checklistGrid" class="checkEditList"></div>
+            <div id="checklistResult" class="toast"></div>
+          </section>
+
+          <section class="page" id="notePage">
+            <div class="contextCard">
+              <span id="noteRegion">-</span>
+              <strong id="noteBuilding">-</strong>
+              <small id="noteMeta">위치, 비고, 점검자를 저장합니다</small>
+            </div>
+            <div class="stepNav">
+              <button class="step done">광선로</button>
+              <button class="step done">신호값</button>
+              <button class="step done">점검결과</button>
+              <button class="step active">비고</button>
+            </div>
+            <h1>비고</h1>
+            <p class="lead">위치와 특이사항을 입력하세요. 비워두면 빈칸으로 저장됩니다.</p>
+            <div id="noteGrid" class="fieldStack"></div>
+            <div id="noteResult" class="toast"></div>
           </section>
 
           <section class="page" id="donePage">
@@ -150,6 +188,6 @@
     <script>
       window.CATV_API_BASE = "https://script.google.com/macros/s/AKfycbyL7EgBP2ltsJ841vK9h_xEW_2HYCM40oW0ZnKNBgVIZeYENnR4CCYPG4aO_Q-a8wEOEw/exec";
     </script>
-    <script src="./app.js?v=17"></script>
+    <script src="./app.js?v=18"></script>
   </body>
 </html>

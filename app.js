@@ -9,6 +9,7 @@ const state = {
   historyFilter: "all",
   historyMonth: null,
   historyDetail: null,
+  historyEditingChecklist: false,
 };
 
 const GROUP_LABELS = {
@@ -16,6 +17,8 @@ const GROUP_LABELS = {
   K2: "K2 건물",
   "사외": "사외",
 };
+
+const CHECK_RESULT_OPTIONS = ["양호", "불량", "해당없음", "기타"];
 
 const $ = (selector) => document.querySelector(selector);
 const API_BASE = window.CATV_API_BASE || "";
@@ -64,6 +67,10 @@ function actionForPath(path) {
   if (path === "/api/fiber/save") return "fiberSave";
   if (path === "/api/signal") return "signal";
   if (path === "/api/signal/save") return "signalSave";
+  if (path === "/api/checklist") return "checklist";
+  if (path === "/api/checklist/save") return "checklistSave";
+  if (path === "/api/note") return "note";
+  if (path === "/api/note/save") return "noteSave";
   throw new Error(`지원하지 않는 요청입니다: ${path}`);
 }
 
@@ -123,6 +130,8 @@ function setPage(name) {
   if (name === "select") setAction("점검 시작 →", "start", Boolean(state.selected));
   if (name === "fiber") setAction("다음 →", "fiber", true);
   if (name === "signal") setAction("다음 →", "signal", true);
+  if (name === "checklist") setAction("다음 →", "checklist", true);
+  if (name === "note") setAction("완료 →", "note", true);
   if (name === "done") $(".bottomBar").style.display = "none";
 }
 
@@ -199,7 +208,7 @@ function fieldTemplate(item, value = "", previous = "") {
 
 function collectValues(containerSelector) {
   const values = {};
-  document.querySelectorAll(`${containerSelector} input`).forEach((input) => {
+  document.querySelectorAll(`${containerSelector} input, ${containerSelector} textarea`).forEach((input) => {
     values[input.dataset.col] = input.value.trim();
   });
   return values;
@@ -279,7 +288,8 @@ async function saveSignal() {
     state.signalStep = result.nextStep;
     if (state.signalStep >= state.signalTotal) {
       $("#signalProgress").style.width = "100%";
-      setPage("done");
+      await renderChecklist();
+      setPage("checklist");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -290,14 +300,137 @@ async function saveSignal() {
   }
 }
 
+function checklistResultMode(result) {
+  if (!result) return "";
+  return CHECK_RESULT_OPTIONS.includes(result) ? result : "기타";
+}
+
+function checklistEditorTemplate(items, target = "flow") {
+  return (items || [])
+    .map((item) => {
+      const mode = checklistResultMode(item.result);
+      const customValue = mode === "기타" ? item.result : "";
+      const options = ['<option value="">선택</option>', ...CHECK_RESULT_OPTIONS.map((option) => `<option value="${option}" ${mode === option ? "selected" : ""}>${option}</option>`)].join("");
+      return `
+        <article class="checkEditItem" data-row="${item.row}" data-target="${target}">
+          <div class="checkEditMeta">
+            <strong>${item.item || item.equipment || "점검 항목"}</strong>
+            <span>${[item.standard, item.method].filter(Boolean).join(" · ") || "기준 없음"}</span>
+          </div>
+          <select data-row="${item.row}" data-role="result" aria-label="점검 결과">
+            ${options}
+          </select>
+          <input
+            class="customResult ${mode === "기타" ? "show" : ""}"
+            data-row="${item.row}"
+            data-role="custom"
+            value="${customValue || ""}"
+            placeholder="기타 결과 입력"
+          />
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function bindChecklistEditors(rootSelector) {
+  document.querySelectorAll(`${rootSelector} select[data-role="result"]`).forEach((select) => {
+    const custom = select.closest(".checkEditItem")?.querySelector('[data-role="custom"]');
+    const sync = () => {
+      if (!custom) return;
+      custom.classList.toggle("show", select.value === "기타");
+      if (select.value !== "기타") custom.value = "";
+    };
+    select.addEventListener("change", sync);
+    sync();
+  });
+}
+
+function collectChecklistValues(rootSelector) {
+  return Array.from(document.querySelectorAll(`${rootSelector} .checkEditItem`)).map((item) => {
+    const row = Number(item.dataset.row);
+    const mode = item.querySelector('[data-role="result"]')?.value || "";
+    const custom = item.querySelector('[data-role="custom"]')?.value.trim() || "";
+    return { row, result: mode === "기타" ? custom : mode };
+  });
+}
+
+async function renderChecklist() {
+  const result = await postJson("/api/checklist", { building: state.selected.building });
+  $("#checklistRegion").textContent = `${state.selected.region} · ${result.sheet || "점검 시트"}`;
+  $("#checklistBuilding").textContent = state.selected.building;
+  $("#checklistMeta").textContent = result.sheet ? `${result.sheet} · H열 결과` : "건물별 점검 시트를 찾지 못했습니다";
+  $("#checklistGrid").innerHTML = checklistEditorTemplate(result.items, "flow") || '<p class="measureNotice">표시할 점검 항목이 없습니다.</p>';
+  bindChecklistEditors("#checklistGrid");
+  clearToast("#checklistResult");
+}
+
+async function saveChecklist() {
+  try {
+    await postJson("/api/checklist/save", {
+      building: state.selected.building,
+      items: collectChecklistValues("#checklistGrid"),
+    });
+    await renderNote();
+    setPage("note");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    toast("#checklistResult", error.message, "warn");
+  }
+}
+
+async function renderNote() {
+  const result = await postJson("/api/note", { building: state.selected.building });
+  const inspector = $("#inspectorName").value.trim();
+  $("#noteRegion").textContent = `${state.selected.region} · ${result.sheet}`;
+  $("#noteBuilding").textContent = state.selected.building;
+  $("#noteMeta").textContent = `${result.monthLabel} · ${result.monthRow}행`;
+  $("#noteGrid").innerHTML = `
+    <div class="field">
+      <label for="note-location">위치</label>
+      <p>측정 위치 또는 방송단자함 위치를 입력합니다.</p>
+      ${result.previous?.AB ? `<small class="previousValue">이전 값: ${result.previous.AB}</small>` : ""}
+      <input id="note-location" data-col="AB" value="${result.values?.AB || result.previous?.AB || ""}" placeholder="위치 입력" />
+    </div>
+    <div class="field">
+      <label for="note-remark">비고</label>
+      <p>특이사항, 보완 필요사항 등을 입력합니다.</p>
+      <textarea id="note-remark" data-col="AC" rows="4" placeholder="비고 입력">${result.values?.AC || ""}</textarea>
+    </div>
+    <div class="field">
+      <label for="note-inspector">점검자</label>
+      <p>점검자 이름을 저장합니다.</p>
+      <input id="note-inspector" data-col="AD" value="${result.values?.AD || inspector || ""}" placeholder="점검자 입력" />
+    </div>
+  `;
+  clearToast("#noteResult");
+}
+
+async function saveNote() {
+  try {
+    await postJson("/api/note/save", {
+      building: state.selected.building,
+      values: collectValues("#noteGrid"),
+      inspector: $("#inspectorName").value.trim(),
+    });
+    setPage("done");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    toast("#noteResult", error.message, "warn");
+  }
+}
+
 async function handlePrimaryAction() {
   if (state.action === "start") await startInspection();
   else if (state.action === "fiber") await saveFiber();
   else if (state.action === "signal") await saveSignal();
+  else if (state.action === "checklist") await saveChecklist();
+  else if (state.action === "note") await saveNote();
 }
 
 function restart() {
   state.signalStep = 0;
+  state.historyEditingChecklist = false;
   setPage("select");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -407,6 +540,7 @@ async function loadHistoryDetail(building) {
   const data = await getJson(`/api/history/detail?building=${encodeURIComponent(building)}`);
   if (!data.ok) throw new Error(data.error || "상세 정보를 불러오지 못했습니다.");
   state.historyDetail = data;
+  state.historyEditingChecklist = false;
   renderHistoryDetail();
   $("#historyDetail").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -491,21 +625,21 @@ function renderHistoryDetail() {
         .join("")
     : "";
 
-  const checklistItems = detail.checklist?.items
-    ?.filter((item) => item.result)
-    .slice(0, 10)
+  const checklistRows = detail.checklist?.items || [];
+  const checklistItems = checklistRows
     .map(
       (item) => `
         <div class="checkResult">
           <div>
             <strong>${item.item || item.equipment || "점검 항목"}</strong>
-            <span>${item.standard || item.method || ""}</span>
+            <span>${[item.standard, item.method].filter(Boolean).join(" · ")}</span>
           </div>
           <strong>${emptyValue(item.result)}</strong>
         </div>
       `,
     )
     .join("");
+  const checklistEditor = checklistEditorTemplate(checklistRows, "history");
 
   box.className = "historyDetail show";
   box.innerHTML = `
@@ -537,15 +671,57 @@ function renderHistoryDetail() {
       </section>
 
       <section class="detailPanel">
-        <div class="detailTop"><h2>건물 점검 결과</h2></div>
-        <div class="checkResultList">${checklistItems || '<p class="measureNotice">표시할 점검 결과가 없습니다.</p>'}</div>
+        <div class="detailTop">
+          <h2>건물 점검 결과</h2>
+          <button id="editChecklistButton" class="miniButton" type="button">${state.historyEditingChecklist ? "보기" : "수정"}</button>
+        </div>
+        <div class="checkResultList ${state.historyEditingChecklist ? "editing" : ""}">
+          ${
+            state.historyEditingChecklist
+              ? `
+                <div id="historyChecklistEditor" class="checkEditList">${checklistEditor || '<p class="measureNotice">표시할 점검 항목이 없습니다.</p>'}</div>
+                <div class="historyEditActions">
+                  <button id="saveHistoryChecklist" class="fileButton" type="button">수정 저장</button>
+                  <button id="cancelHistoryChecklist" class="ghostButton" type="button">취소</button>
+                </div>
+                <div id="historyChecklistResult" class="toast"></div>
+              `
+              : checklistItems || '<p class="measureNotice">표시할 점검 항목이 없습니다.</p>'
+          }
+        </div>
       </section>
     </div>
   `;
   box.querySelector(".detailClose").addEventListener("click", () => {
     state.historyDetail = null;
+    state.historyEditingChecklist = false;
     renderHistoryDetail();
   });
+  const editButton = box.querySelector("#editChecklistButton");
+  if (editButton) {
+    editButton.addEventListener("click", () => {
+      state.historyEditingChecklist = !state.historyEditingChecklist;
+      renderHistoryDetail();
+    });
+  }
+  if (state.historyEditingChecklist) {
+    bindChecklistEditors("#historyChecklistEditor");
+    box.querySelector("#cancelHistoryChecklist")?.addEventListener("click", () => {
+      state.historyEditingChecklist = false;
+      renderHistoryDetail();
+    });
+    box.querySelector("#saveHistoryChecklist")?.addEventListener("click", async () => {
+      try {
+        await postJson("/api/checklist/save", {
+          building: detail.building,
+          items: collectChecklistValues("#historyChecklistEditor"),
+        });
+        await loadHistoryDetail(detail.building);
+      } catch (error) {
+        toast("#historyChecklistResult", error.message, "warn");
+      }
+    });
+  }
 }
 
 function bindStaticEvents() {

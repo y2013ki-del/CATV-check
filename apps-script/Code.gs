@@ -27,7 +27,6 @@ const SIGNAL_STEPS = [
   [11, 12],
   [8, 9],
   [5, 6],
-  [28, 30],
 ];
 
 function doGet(e) {
@@ -69,6 +68,14 @@ function runApiAction_(action, payload) {
       return appSignal(payload);
     case "signalSave":
       return appSignalSave(payload);
+    case "checklist":
+      return appChecklist(payload);
+    case "checklistSave":
+      return appChecklistSave(payload);
+    case "note":
+      return appNote(payload);
+    case "noteSave":
+      return appNoteSave(payload);
     default:
       throw new Error("지원하지 않는 action입니다: " + action);
   }
@@ -198,6 +205,81 @@ function appSignalSave(body) {
     ws.getRange(monthRow, col).setValue(next);
   });
   return { ok: true, sheet: block.sheet, monthRow, nextStep: step + 1 };
+}
+
+function appChecklist(body) {
+  const building = norm_(body && body.building);
+  const ss = openBook_();
+  const sheetName = findSheetName_(ss, building);
+  if (!sheetName) return { ok: true, sheet: null, items: [] };
+  const ws = ss.getSheetByName(sheetName);
+  return { ok: true, sheet: sheetName, items: checklistItems_(ws) };
+}
+
+function appChecklistSave(body) {
+  const building = norm_(body && body.building);
+  const items = (body && body.items) || [];
+  const ss = openBook_();
+  const sheetName = findSheetName_(ss, building);
+  if (!sheetName) throw new Error(building + " 건물 점검 시트를 찾을 수 없습니다.");
+  const ws = ss.getSheetByName(sheetName);
+  items.forEach((item) => {
+    const row = Number(item.row);
+    if (row >= 5 && row <= Math.min(ws.getLastRow(), 24)) {
+      ws.getRange(row, 8).setValue(norm_(item.result));
+    }
+  });
+  return { ok: true, sheet: sheetName, saved: items.length };
+}
+
+function appNote(body) {
+  const building = norm_(body && body.building);
+  const ss = openBook_();
+  const plan = ss.getSheetByName(PLAN_SHEET);
+  const planRow = findPlanRow_(plan, building);
+  const region = activeRegion_(plan, planRow);
+  const block = findMeasureBlock_(ss, region, building);
+  if (!block) throw new Error(building + "에 연결된 측정값 블록을 찾을 수 없습니다.");
+  const ws = ss.getSheetByName(block.sheet);
+  const month = Number(Utilities.formatDate(today_(), TIMEZONE, "M"));
+  const monthRow = findMonthRowInBlock_(ws, block.headerRow, month);
+  return {
+    ok: true,
+    sheet: block.sheet,
+    region,
+    monthRow,
+    monthLabel: norm_(ws.getRange(monthRow, 2).getValue()),
+    values: {
+      AB: displayValue_(ws.getRange(monthRow, 28).getValue()),
+      AC: displayValue_(ws.getRange(monthRow, 29).getValue()),
+      AD: displayValue_(ws.getRange(monthRow, 30).getValue()),
+    },
+    previous: {
+      AB: displayValue_(previousNonblankInBlock_(ws, block.headerRow, monthRow, 28)),
+    },
+  };
+}
+
+function appNoteSave(body) {
+  const building = norm_(body && body.building);
+  const values = (body && body.values) || {};
+  const inspector = norm_(body && body.inspector);
+  const ss = openBook_();
+  const plan = ss.getSheetByName(PLAN_SHEET);
+  const planRow = findPlanRow_(plan, building);
+  const region = activeRegion_(plan, planRow);
+  const block = findMeasureBlock_(ss, region, building);
+  if (!block) throw new Error(building + "에 연결된 측정값 블록을 찾을 수 없습니다.");
+  const ws = ss.getSheetByName(block.sheet);
+  const month = Number(Utilities.formatDate(today_(), TIMEZONE, "M"));
+  const monthRow = findMonthRowInBlock_(ws, block.headerRow, month);
+  const location = norm_(values.AB);
+  const note = norm_(values.AC);
+  const noteInspector = norm_(values.AD) || inspector;
+  ws.getRange(monthRow, 28).setValue(location || previousNonblankInBlock_(ws, block.headerRow, monthRow, 28));
+  ws.getRange(monthRow, 29).setValue(note);
+  ws.getRange(monthRow, 30).setValue(noteInspector);
+  return { ok: true, sheet: block.sheet, monthRow };
 }
 
 function openBook_() {
@@ -414,6 +496,27 @@ function groupedMeasureValues_(ws, row, headerRow) {
   return groups.filter((group) => group.values.length);
 }
 
+function checklistItems_(ws) {
+  const end = Math.min(ws.getLastRow(), 24);
+  const items = [];
+  for (let row = 5; row <= end; row += 1) {
+    const item = norm_(ws.getRange(row, 5).getValue());
+    const result = displayValue_(ws.getRange(row, 8).getValue());
+    if (item || (result !== "" && result !== null)) {
+      items.push({
+        row,
+        category: norm_(ws.getRange(row, 2).getValue()),
+        equipment: norm_(ws.getRange(row, 3).getValue()),
+        item,
+        method: norm_(ws.getRange(row, 6).getValue()),
+        standard: norm_(ws.getRange(row, 7).getValue()),
+        result,
+      });
+    }
+  }
+  return items;
+}
+
 function historyDetailPayload_(ss, building) {
   const plan = ss.getSheetByName(PLAN_SHEET);
   const planRow = findPlanRow_(plan, building);
@@ -476,24 +579,7 @@ function historyDetailPayload_(ss, building) {
   const buildingSheetName = findSheetName_(ss, building);
   if (buildingSheetName) {
     const ws = ss.getSheetByName(buildingSheetName);
-    const end = Math.min(ws.getLastRow(), 24);
-    const items = [];
-    for (let row = 5; row <= end; row += 1) {
-      const item = norm_(ws.getRange(row, 5).getValue());
-      const result = displayValue_(ws.getRange(row, 8).getValue());
-      if (item || (result !== "" && result !== null)) {
-        items.push({
-          row,
-          category: norm_(ws.getRange(row, 2).getValue()),
-          equipment: norm_(ws.getRange(row, 3).getValue()),
-          item,
-          method: norm_(ws.getRange(row, 6).getValue()),
-          standard: norm_(ws.getRange(row, 7).getValue()),
-          result,
-        });
-      }
-    }
-    checklist = { sheet: buildingSheetName, items };
+    checklist = { sheet: buildingSheetName, items: checklistItems_(ws) };
   }
 
   return { building, region, fiber, measurement, checklist };
