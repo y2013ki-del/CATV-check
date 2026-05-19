@@ -10,6 +10,7 @@ const state = {
   historyMonth: null,
   historyDetail: null,
   historyEditingChecklist: false,
+  signalLegacySteps: [],
 };
 
 const GROUP_LABELS = {
@@ -262,25 +263,112 @@ async function renderSignal() {
     building: state.selected.building,
   });
   state.signalTotal = 1;
+  state.signalLegacySteps = [];
+  let groups = result.groups;
+  if (!groups && result.headers) {
+    const legacy = await loadLegacySignalSteps(result);
+    state.signalLegacySteps = legacy.steps;
+    groups = legacy.groups;
+  }
   $("#signalMeta").textContent = `${result.sheet} · ${result.monthRow}행`;
   $("#signalTitle").textContent = "신호값 입력";
   $("#signalProgress").style.width = "100%";
-  $("#signalGrid").innerHTML = signalGroupsTemplate(result.groups);
+  $("#signalGrid").innerHTML = signalGroupsTemplate(groups);
   toast("#signalResult", "채널별 RF / EVM / MER 값을 입력하세요.");
 }
 
 async function saveSignal() {
   try {
-    await postJson("/api/signal/save", {
-      building: state.selected.building,
-      values: collectValues("#signalGrid"),
-    });
+    const values = collectValues("#signalGrid");
+    if (state.signalLegacySteps.length) {
+      for (const step of state.signalLegacySteps) {
+        const stepValues = {};
+        step.headers.forEach((header) => {
+          if (header.col <= 27) stepValues[header.letter] = values[header.letter] || "";
+        });
+        if (Object.keys(stepValues).length) {
+          await postJson("/api/signal/save", {
+            building: state.selected.building,
+            step: step.step,
+            values: stepValues,
+          });
+        }
+      }
+    } else {
+      await postJson("/api/signal/save", {
+        building: state.selected.building,
+        values,
+      });
+    }
     await renderChecklist();
     setPage("checklist");
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
     toast("#signalResult", error.message, "warn");
   }
+}
+
+async function loadLegacySignalSteps(firstResult) {
+  const steps = [
+    {
+      step: firstResult.step || 0,
+      headers: firstResult.headers || [],
+      values: firstResult.values || {},
+    },
+  ];
+  const total = firstResult.totalSteps || 1;
+  for (let step = 1; step < total; step += 1) {
+    const result = await postJson("/api/signal", {
+      building: state.selected.building,
+      step,
+    });
+    steps.push({
+      step,
+      headers: result.headers || [],
+      values: result.values || {},
+    });
+  }
+  return { steps, groups: legacySignalGroups(steps) };
+}
+
+function metricTitleFromHeader(header) {
+  if (header.kind === "신호값" || (header.measure || "").includes("RF Power")) return "RF";
+  if (header.kind === "EVM") return "EVM";
+  if (header.kind === "MER") return "MER";
+  return header.kind || header.measure || "값";
+}
+
+function legacySignalGroups(steps) {
+  const items = steps
+    .flatMap((step) =>
+      step.headers.map((header) => ({
+        ...header,
+        value: step.values?.[header.letter] ?? "",
+      })),
+    )
+    .filter((item) => item.col <= 27)
+    .sort((left, right) => left.col - right.col);
+
+  const groups = [];
+  let current = null;
+  items.forEach((item) => {
+    if (item.channel) {
+      current = { channel: item.channel, metrics: [] };
+      groups.push(current);
+    }
+    if (!current) {
+      current = { channel: item.channel || item.letter, metrics: [] };
+      groups.push(current);
+    }
+    current.metrics.push({
+      letter: item.letter,
+      title: metricTitleFromHeader(item),
+      measure: item.measure,
+      kind: item.kind,
+      value: item.value,
+    });
+  });
+  return groups.filter((group) => group.metrics.length);
 }
 
 function signalGroupsTemplate(groups = []) {
