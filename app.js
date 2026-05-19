@@ -411,17 +411,27 @@ function checklistResultMode(result) {
   return CHECK_RESULT_OPTIONS.includes(result) ? result : "기타";
 }
 
+function checklistMeta(item) {
+  return {
+    title: item.item || item.equipment || "점검 항목",
+    context: [item.category ? `구분: ${item.category}` : "", item.equipment ? `설비: ${item.equipment}` : ""].filter(Boolean).join(" · "),
+    detail: [item.method ? `방법: ${item.method}` : "", item.standard ? `기준: ${item.standard}` : ""].filter(Boolean).join(" · "),
+  };
+}
+
 function checklistEditorTemplate(items, target = "flow") {
   return (items || [])
     .map((item) => {
       const mode = checklistResultMode(item.result);
       const customValue = mode === "기타" ? item.result : "";
       const options = ['<option value="">선택</option>', ...CHECK_RESULT_OPTIONS.map((option) => `<option value="${option}" ${mode === option ? "selected" : ""}>${option}</option>`)].join("");
+      const meta = checklistMeta(item);
       return `
         <article class="checkEditItem" data-row="${item.row}" data-target="${target}">
           <div class="checkEditMeta">
-            <strong>${item.item || item.equipment || "점검 항목"}</strong>
-            <span>${[item.standard, item.method].filter(Boolean).join(" · ") || "기준 없음"}</span>
+            <strong>${meta.title}</strong>
+            <span class="checkEditContext">${meta.context || "구분/설비 없음"}</span>
+            <span>${meta.detail || "방법/기준 없음"}</span>
           </div>
           <select data-row="${item.row}" data-role="result" aria-label="점검 결과">
             ${options}
@@ -733,17 +743,19 @@ function renderHistoryDetail() {
 
   const checklistRows = detail.checklist?.items || [];
   const checklistItems = checklistRows
-    .map(
-      (item) => `
+    .map((item) => {
+      const meta = checklistMeta(item);
+      return `
         <div class="checkResult">
           <div>
-            <strong>${item.item || item.equipment || "점검 항목"}</strong>
-            <span>${[item.standard, item.method].filter(Boolean).join(" · ")}</span>
+            <strong>${meta.title}</strong>
+            <span class="checkResultContext">${meta.context || "구분/설비 없음"}</span>
+            <span>${meta.detail || "방법/기준 없음"}</span>
           </div>
           <strong>${emptyValue(item.result)}</strong>
         </div>
-      `,
-    )
+      `;
+    })
     .join("");
   const checklistEditor = checklistEditorTemplate(checklistRows, "history");
 

@@ -340,6 +340,11 @@ h1 {
   line-height: 1.4;
 }
 
+.checkEditMeta .checkEditContext {
+  color: #273247;
+  font-weight: 950;
+}
+
 .checkEditItem select,
 .checkEditItem input {
   width: 100%;
@@ -916,6 +921,11 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
+}
+
+.checkResult .checkResultContext {
+  color: #273247;
+  font-weight: 950;
 }
 
 .checkResult strong {
