@@ -1,4 +1,4 @@
-const SPREADSHEET_ID = "1pG4VMw8rKuAWr4CQ56RqMTLsSDm7iFdVwA1Cf3QxtFI";
+const SPREADSHEET_ID = "1d4oRFAL8jRHJHEHyGekSYV2l4MxY17XSFLEY2mhLPIQ";
 const PLAN_SHEET = "계획점검 이행일";
 const FIBER_SHEET = "CA_광선로 측정_2026";
 const MEASURE_SHEETS = { K1: "K1 측정값", K2: "K2 측정값", "사외": "사외 측정값" };
